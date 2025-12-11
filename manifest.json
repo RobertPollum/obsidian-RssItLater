@@ -1,0 +1,10 @@
+{
+  "id": "metadata-link-parser",
+  "name": "Metadata Link Parser",
+  "version": "1.0.0",
+  "minAppVersion": "0.15.0",
+  "description": "Extract URLs from markdown file metadata and process them with ReadItLater plugin",
+  "author": "Your Name",
+  "authorUrl": "https://github.com/yourusername",
+  "isDesktopOnly": false
+}
