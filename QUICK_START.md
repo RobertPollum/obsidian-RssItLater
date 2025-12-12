@@ -174,7 +174,7 @@ See [PROCESSED_TRACKING.md](./PROCESSED_TRACKING.md) for details.
 ### Core Files (Required)
 - `parse-metadata-link.ts` - Main functionality
 - `ReadItLaterStubs.ts` - Stub implementations
-- `example-plugin-main.ts` - Plugin entry point (rename to `main.ts` for production)
+- `plugin-main.ts` - Plugin entry point (rename to `main.ts` for production)
 
 ### Configuration Files (Required)
 - `manifest.json` - Plugin metadata

@@ -67,11 +67,12 @@ export class MetadataLinkParser {
                         .map(([key, value]) => `${key}: ${value}`);
                     const newFrontmatter = `---\n${yamlLines.join('\n')}\n---`;
                     
-                    const beforeFrontmatter = content.substring(0, frontMatterInfo.from);
-                    const afterFrontmatter = content.substring(frontMatterInfo.to);
-                    const newContent = beforeFrontmatter + newFrontmatter + afterFrontmatter;
+                    // const beforeFrontmatter = content.substring(0, frontMatterInfo.from);
+                    // const afterFrontmatter = content.substring(frontMatterInfo.to);
+                    // const newContent = beforeFrontmatter + newFrontmatter + afterFrontmatter;
                     
-                    await this.app.vault.modify(file, newContent);
+                    // await this.app.vault.modify(file, newContent);
+                    await this.app.vault.modify(file, newFrontmatter)
                 }
             }
         } catch (error) {
@@ -106,7 +107,7 @@ export class MetadataLinkParser {
                 }
             }
         } catch (error) {
-            console.error('Error parsing frontmatter:', error);
+            console.error('Error extracting URL from frontmatter:', error);
         }
 
         return null;

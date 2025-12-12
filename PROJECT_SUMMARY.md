@@ -17,7 +17,7 @@ This project provides a TypeScript script/plugin that integrates with Obsidian's
   - Falls back to built-in implementation if not
 
 ### Plugin Integration
-- **`example-plugin-main.ts`** - Example Obsidian plugin implementation
+- **`plugin-main.ts`** - Example Obsidian plugin implementation
   - Shows how to register commands
   - Demonstrates ribbon icon integration
   - Provides template for accessing ReadItLater's NoteService

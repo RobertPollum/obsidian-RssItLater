@@ -51,7 +51,7 @@ After running `npm install`, all TypeScript errors should be resolved. The plugi
 1. Copy all TypeScript files to your Obsidian plugin project:
    - `parse-metadata-link.ts`
    - `ReadItLaterStubs.ts`
-   - `example-plugin-main.ts`
+   - `plugin-main.ts`
 2. Run `npm install` to install dependencies
 3. Build your plugin with `npm run build`
 4. Copy to your vault's plugins folder

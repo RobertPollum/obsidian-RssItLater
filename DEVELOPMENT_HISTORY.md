@@ -22,7 +22,7 @@ This document chronicles the complete development history of the Obsidian Metada
 
 **Files Created:**
 1. `parse-metadata-link.ts` - Core parser implementation
-2. `example-plugin-main.ts` - Obsidian plugin entry point
+2. `plugin-main.ts` - Obsidian plugin entry point
 3. `package.json` - Dependencies and build scripts
 4. `tsconfig.json` - TypeScript configuration
 5. `manifest.json` - Plugin metadata
@@ -87,7 +87,7 @@ private extractTextFromHtml(html: string): string
 
 **Files Updated:**
 - `parse-metadata-link.ts` - Added append methods
-- `example-plugin-main.ts` - Added append commands
+- `plugin-main.ts` - Added append commands
 - `README.md` - Documented append mode
 - `USAGE_EXAMPLES.md` - Added append scenarios
 - `PROJECT_SUMMARY.md` - Updated architecture
@@ -188,7 +188,7 @@ class EnhancedNoteService extends NoteService {
 
 **Files Updated:**
 - `parse-metadata-link.ts` - Changed imports to use stubs
-- `example-plugin-main.ts` - Uses `getNoteService(app)`
+- `plugin-main.ts` - Uses `getNoteService(app)`
 - `README.md` - Updated installation instructions
 - `PROJECT_SUMMARY.md` - Documented stub system
 
@@ -216,7 +216,7 @@ import builtins from "builtin-modules";
 const prod = (process.argv[2] === "production");
 
 const context = await esbuild.context({
-    entryPoints: ["example-plugin-main.ts"],
+    entryPoints: ["plugin-main.ts"],
     bundle: true,
     external: ["obsidian", "electron", ...builtins],
     format: "cjs",
@@ -404,7 +404,7 @@ this.registerEvent(
 - 🚀 Much faster workflow
 
 **Files Updated:**
-- `example-plugin-main.ts` - Added file-menu event handler
+- `plugin-main.ts` - Added file-menu event handler
 - `README.md` - Added context menu usage section
 - `QUICK_START.md` - Updated with context menu examples
 - `PROJECT_SUMMARY.md` - Added context menu to features
@@ -647,7 +647,7 @@ obsidian-scripts/
 ├── Core Implementation
 │   ├── parse-metadata-link.ts          - Main parser logic
 │   ├── ReadItLaterStubs.ts             - Stub implementations
-│   └── example-plugin-main.ts          - Plugin entry point
+│   └── plugin-main.ts          - Plugin entry point
 │
 ├── Configuration
 │   ├── package.json                     - Dependencies
@@ -747,7 +747,7 @@ obsidian-scripts/
 ### Lines of Code
 - `parse-metadata-link.ts`: ~371 lines
 - `ReadItLaterStubs.ts`: ~338 lines
-- `example-plugin-main.ts`: ~140 lines
+- `plugin-main.ts`: ~140 lines
 - **Total TypeScript: ~849 lines**
 
 ### Features Implemented

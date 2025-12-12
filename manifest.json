@@ -5,6 +5,6 @@
   "minAppVersion": "0.15.0",
   "description": "Extract URLs from markdown file metadata and process them with ReadItLater plugin",
   "author": "Your Name",
-  "authorUrl": "https://github.com/yourusername",
+  "authorUrl": "https://github.com/RobertPollum",
   "isDesktopOnly": false
 }
