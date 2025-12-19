@@ -1,6 +1,8 @@
 import { Plugin, TFile, TFolder, Menu } from 'obsidian';
 import { MetadataLinkParser, parseMetadataLink, parseMetadataLinkAndAppend, parseMetadataLinksInFolder } from './parse-metadata-link';
 import { NoteService, getNoteService, isReadItLaterInstalled } from './ReadItLaterStubs';
+import { TransformationConfigManager } from './url-transformer/transformation-config';
+import { UrlTransformerSettingTab } from './settings/url-transformer-settings';
 
 /**
  * Example Obsidian Plugin that integrates the Metadata Link Parser
@@ -8,12 +10,26 @@ import { NoteService, getNoteService, isReadItLaterInstalled } from './ReadItLat
  */
 export default class MetadataLinkParserPlugin extends Plugin {
     private noteService: NoteService;
+    private configManager: TransformationConfigManager;
+
+    private createParser(): MetadataLinkParser {
+        const parser = new MetadataLinkParser(this.app, this.noteService);
+        parser.setTransformationConfig(this.configManager.getConfig());
+        return parser;
+    }
 
     async onload() {
         console.log('Loading Metadata Link Parser Plugin');
 
         // Initialize NoteService - automatically detects and uses ReadItLater plugin if available
         this.noteService = getNoteService(this.app);
+        
+        // Initialize URL transformation config manager
+        this.configManager = new TransformationConfigManager(this.app);
+        await this.configManager.loadConfig();
+        
+        // Add settings tab
+        this.addSettingTab(new UrlTransformerSettingTab(this.app, this, this.configManager));
         
         // Log which implementation is being used
         if (isReadItLaterInstalled(this.app)) {
@@ -27,7 +43,8 @@ export default class MetadataLinkParserPlugin extends Plugin {
             id: 'parse-active-file-link',
             name: 'Parse link from active file (create new note)',
             callback: async () => {
-                await parseMetadataLink(this.app, this.noteService);
+                const parser = this.createParser();
+                await parser.processActiveFile();
             }
         });
 
@@ -36,7 +53,8 @@ export default class MetadataLinkParserPlugin extends Plugin {
             id: 'parse-active-file-link-append',
             name: 'Parse link and append to active file',
             callback: async () => {
-                await parseMetadataLinkAndAppend(this.app, this.noteService);
+                const parser = this.createParser();
+                await parser.processActiveFileAndAppend();
             }
         });
 
@@ -45,9 +63,9 @@ export default class MetadataLinkParserPlugin extends Plugin {
             id: 'parse-folder-links',
             name: 'Parse links from folder (create new notes)',
             callback: async () => {
-                // You can prompt user for folder or use a default
-                const folderPath = 'Articles'; // Or prompt user
-                await parseMetadataLinksInFolder(this.app, this.noteService, folderPath);
+                const folderPath = 'Articles';
+                const parser = this.createParser();
+                await parser.processFolderFiles(folderPath);
             }
         });
 
@@ -56,8 +74,8 @@ export default class MetadataLinkParserPlugin extends Plugin {
             id: 'parse-folder-links-append',
             name: 'Parse links from folder and append to files',
             callback: async () => {
-                const folderPath = 'Articles'; // Or prompt user
-                const parser = new MetadataLinkParser(this.app, this.noteService);
+                const folderPath = 'Articles';
+                const parser = this.createParser();
                 await parser.processFolderFilesAndAppend(folderPath);
             }
         });
@@ -71,14 +89,15 @@ export default class MetadataLinkParserPlugin extends Plugin {
                 if (!activeFile) {
                     return;
                 }
-                const parser = new MetadataLinkParser(this.app, this.noteService);
+                const parser = this.createParser();
                 await parser.processUrlBatch(activeFile);
             }
         });
 
         // Add ribbon icon for append functionality
         this.addRibbonIcon('link', 'Parse link and append to file', async () => {
-            await parseMetadataLinkAndAppend(this.app, this.noteService);
+            const parser = this.createParser();
+            await parser.processActiveFileAndAppend();
         });
 
         // Register context menu for folders
@@ -91,7 +110,7 @@ export default class MetadataLinkParserPlugin extends Plugin {
                             .setTitle('Append articles to files in folder')
                             .setIcon('link')
                             .onClick(async () => {
-                                const parser = new MetadataLinkParser(this.app, this.noteService);
+                                const parser = this.createParser();
                                 await parser.processFolderFilesAndAppend(file.path);
                             });
                     });
@@ -101,7 +120,8 @@ export default class MetadataLinkParserPlugin extends Plugin {
                             .setTitle('Create notes from links in folder')
                             .setIcon('file-plus')
                             .onClick(async () => {
-                                await parseMetadataLinksInFolder(this.app, this.noteService, file.path);
+                                const parser = this.createParser();
+                                await parser.processFolderFiles(file.path);
                             });
                     });
                 }
@@ -113,7 +133,7 @@ export default class MetadataLinkParserPlugin extends Plugin {
                             .setTitle('Append article to this file')
                             .setIcon('link')
                             .onClick(async () => {
-                                const parser = new MetadataLinkParser(this.app, this.noteService);
+                                const parser = this.createParser();
                                 await parser.processFileAndAppend(file);
                             });
                     });
@@ -123,7 +143,7 @@ export default class MetadataLinkParserPlugin extends Plugin {
                             .setTitle('Create note from link')
                             .setIcon('file-plus')
                             .onClick(async () => {
-                                const parser = new MetadataLinkParser(this.app, this.noteService);
+                                const parser = this.createParser();
                                 await parser.processFile(file);
                             });
                     });

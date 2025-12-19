@@ -1,5 +1,7 @@
 import { App, TFile, Notice, getFrontMatterInfo, parseYaml } from 'obsidian';
 import { ReadItLaterApi, NoteService } from './ReadItLaterStubs';
+import { UrlTransformer } from './url-transformer/url-transformer';
+import { TransformationConfig } from './url-transformer/transformation-types';
 
 /**
  * Script to extract metadata link from an Obsidian markdown file
@@ -8,10 +10,20 @@ import { ReadItLaterApi, NoteService } from './ReadItLaterStubs';
 export class MetadataLinkParser {
     private app: App;
     private readItLaterApi: ReadItLaterApi;
+    private urlTransformer: UrlTransformer | null = null;
+    private transformationConfig: TransformationConfig | null = null;
 
     constructor(app: App, noteService: NoteService) {
         this.app = app;
         this.readItLaterApi = new ReadItLaterApi(noteService);
+    }
+
+    setTransformationConfig(config: TransformationConfig): void {
+        this.transformationConfig = config;
+        this.urlTransformer = new UrlTransformer(
+            config.proxyHealthCacheTtlMinutes,
+            config.proxyHealthTimeoutMs
+        );
     }
 
     /**
@@ -137,6 +149,71 @@ export class MetadataLinkParser {
     }
 
     /**
+     * Transform URL using configured transformation rules
+     * Returns the transformed URL or null if proxy is down
+     */
+    private async transformUrlIfNeeded(url: string): Promise<{ url: string | null; originalUrl: string; appliedRule?: string; error?: string }> {
+        if (!this.urlTransformer || !this.transformationConfig) {
+            return { url, originalUrl: url };
+        }
+
+        const result = await this.urlTransformer.transformUrl(url, this.transformationConfig.rules);
+        
+        return {
+            url: result.transformedUrl,
+            originalUrl: result.originalUrl,
+            appliedRule: result.appliedRule,
+            error: result.error
+        };
+    }
+
+    /**
+     * Update file frontmatter with proxy information
+     */
+    private async updateFrontmatterWithProxyInfo(file: TFile, originalUrl: string, proxiedUrl: string, proxyRule: string): Promise<void> {
+        try {
+            const content = await this.app.vault.read(file);
+            const frontMatterInfo = getFrontMatterInfo(content);
+            
+            if (!frontMatterInfo.exists) {
+                const newFrontmatter = `---\noriginal_url: ${originalUrl}\nproxied_url: ${proxiedUrl}\nproxy_rule: "${proxyRule}"\n---\n\n`;
+                const newContent = newFrontmatter + content;
+                await this.app.vault.modify(file, newContent);
+            } else {
+                const frontmatterText = content.substring(
+                    frontMatterInfo.from,
+                    frontMatterInfo.to
+                );
+                const frontmatter = parseYaml(frontmatterText);
+                
+                const updatedFrontmatter = {
+                    ...frontmatter,
+                    original_url: originalUrl,
+                    proxied_url: proxiedUrl,
+                    proxy_rule: proxyRule
+                };
+                
+                const yamlLines = Object.entries(updatedFrontmatter)
+                    .map(([key, value]) => {
+                        if (typeof value === 'string' && (value.includes(':') || value.includes('#'))) {
+                            return `${key}: "${value}"`;
+                        }
+                        return `${key}: ${value}`;
+                    });
+                const newFrontmatter = `---\n${yamlLines.join('\n')}\n---`;
+                
+                const beforeFrontmatter = content.substring(0, frontMatterInfo.from);
+                const afterFrontmatter = content.substring(frontMatterInfo.to);
+                const newContent = beforeFrontmatter + newFrontmatter + afterFrontmatter;
+                
+                await this.app.vault.modify(file, newContent);
+            }
+        } catch (error) {
+            console.error('Error updating frontmatter with proxy info:', error);
+        }
+    }
+
+    /**
      * Process a file: extract URL and fetch article information via ReadItLater
      * Creates a new note with the article content
      */
@@ -158,13 +235,25 @@ export class MetadataLinkParser {
                 return;
             }
 
-            new Notice(`Processing URL: ${url}`);
-            console.log(`Extracted URL from ${file.path}: ${url}`);
-
-            // Use ReadItLater API to process the URL
-            await this.readItLaterApi.processContent(url);
+            const transformResult = await this.transformUrlIfNeeded(url);
             
-            new Notice(`Successfully processed article from: ${url}`);
+            if (!transformResult.url) {
+                new Notice(`Proxy unavailable: ${transformResult.appliedRule}. Skipping article: ${file.name}`);
+                console.warn(`Skipping ${file.path} - ${transformResult.error}`);
+                return;
+            }
+
+            const urlToProcess = transformResult.url;
+
+            new Notice(`Processing URL: ${urlToProcess}`);
+            console.log(`Extracted URL from ${file.path}: ${transformResult.originalUrl}`);
+            if (transformResult.appliedRule) {
+                console.log(`Applied transformation: ${transformResult.appliedRule}`);
+            }
+
+            await this.readItLaterApi.processContent(urlToProcess);
+            
+            new Notice(`Successfully processed article from: ${urlToProcess}`);
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             new Notice(`Error processing file: ${errorMessage}`);
@@ -204,26 +293,39 @@ export class MetadataLinkParser {
                 return;
             }
 
-            new Notice(`Fetching and parsing article from: ${url}`);
-            console.log(`Extracted URL from ${file.path}: ${url}`);
-
-            // Use ReadItLater API to get parsed markdown content
-            // This will use ReadItLater's sophisticated parser if available,
-            // or fall back to basic HTML parsing if not
-            const articleMarkdown = await this.readItLaterApi.getMarkdownContent(url);
+            const transformResult = await this.transformUrlIfNeeded(url);
             
-            if (!articleMarkdown) {
-                new Notice(`Failed to fetch content from: ${url}`);
+            if (!transformResult.url) {
+                new Notice(`Proxy unavailable: ${transformResult.appliedRule}. Skipping article: ${file.name}`);
+                console.warn(`Skipping ${file.path} - ${transformResult.error}`);
                 return;
             }
 
-            // Append content to the existing file
+            const urlToFetch = transformResult.url;
+            const originalUrl = transformResult.originalUrl;
+
+            new Notice(`Fetching and parsing article from: ${urlToFetch}`);
+            console.log(`Extracted URL from ${file.path}: ${originalUrl}`);
+            if (transformResult.appliedRule) {
+                console.log(`Applied transformation: ${transformResult.appliedRule}`);
+            }
+
+            const articleMarkdown = await this.readItLaterApi.getMarkdownContent(urlToFetch);
+            
+            if (!articleMarkdown) {
+                new Notice(`Failed to fetch content from: ${urlToFetch}`);
+                return;
+            }
+
+            if (transformResult.appliedRule) {
+                await this.updateFrontmatterWithProxyInfo(file, originalUrl, urlToFetch, transformResult.appliedRule);
+            }
+
             const separator = '\n\n---\n\n## Retrieved Article Content\n\n';
             const contentToAppend = separator + articleMarkdown;
             
             await this.app.vault.append(file, contentToAppend);
             
-            // Mark as processed (only in batch mode)
             if (checkProcessed) {
                 await this.markFileAsProcessed(file);
             }
@@ -339,11 +441,38 @@ export class MetadataLinkParser {
 
             new Notice(`Processing ${urls.length} URLs...`);
 
-            // Join URLs with delimiter and process as batch
-            const urlBatch = urls.join('\n');
+            const transformedUrls: string[] = [];
+            const skippedUrls: string[] = [];
+            const downProxies = new Set<string>();
+
+            for (const url of urls) {
+                const transformResult = await this.transformUrlIfNeeded(url);
+                
+                if (!transformResult.url) {
+                    if (transformResult.appliedRule && !downProxies.has(transformResult.appliedRule)) {
+                        downProxies.add(transformResult.appliedRule);
+                        new Notice(`Proxy unavailable: ${transformResult.appliedRule}. Skipping related URLs.`);
+                    }
+                    skippedUrls.push(url);
+                    continue;
+                }
+
+                transformedUrls.push(transformResult.url);
+            }
+
+            if (transformedUrls.length === 0) {
+                new Notice('All URLs skipped due to proxy unavailability');
+                return;
+            }
+
+            const urlBatch = transformedUrls.join('\n');
             await this.readItLaterApi.processContentBatch(urlBatch);
 
-            new Notice(`Successfully processed ${urls.length} URLs`);
+            const message = skippedUrls.length > 0
+                ? `Processed ${transformedUrls.length} URLs, skipped ${skippedUrls.length} due to proxy issues`
+                : `Successfully processed ${transformedUrls.length} URLs`;
+            
+            new Notice(message);
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             new Notice(`Error processing URL batch: ${errorMessage}`);
